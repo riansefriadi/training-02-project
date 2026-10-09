@@ -17,6 +17,20 @@ Skenario diberi ID `SC-{story}-{n}`; `H` = happy path, `E` = edge case.
 
 Total: 36 poin. Jumlah skenario: 4 + 9 + 6 + 8 + 7 + 5 + 7 + 6 = 52.
 
+## Acceptance Criteria Minimum (ACM) dan Pemetaan
+
+Dari klien/pemberi tugas (PRD bagian 7.1). Setiap ACM harus lulus; ACM tidak menambah jumlah skenario karena dicakup oleh skenario rinci di bawah, dengan nilai contoh klien (stok 100, minta 20 atau 120, reservasi 20).
+
+| ID | Skenario | Given | When | Then | Dicakup oleh |
+|---|---|---|---|---|---|
+| ACM-1 | Submit berhasil | Stok tersedia 100 dan draft meminta 20. | Sales Admin melakukan submit. | Status `submitted` dan reserved quantity bertambah 20. | SC-04-1 |
+| ACM-2 | Stok tidak cukup | Stok tersedia 100 dan draft meminta 120. | Sales Admin melakukan submit. | Ditolak (ERR-05), data tidak berubah sebagian, pesan stok tidak cukup tampil. | SC-04-6, SC-04-8 |
+| ACM-3 | Approve | Pesanan `submitted` mereservasi 20. | Supervisor melakukan approve. | Status `approved`, stok fisik berkurang 20, reservasi dilepas, audit tercatat (riwayat status). | SC-05-1 |
+| ACM-4 | Reject | Pesanan `submitted` mereservasi 20. | Supervisor melakukan reject dengan alasan. | Status `rejected`, reservasi dilepas, stok fisik tidak berkurang, alasan tersimpan. | SC-06-1 |
+| ACM-5 | Akses ditolak | Pengguna berperan Sales Admin. | Pengguna membuka aksi approve. | 403 (ERR-02) tanpa mengubah data. | SC-05-4 |
+
+Skenario SC-04-1, SC-04-6, SC-05-1, SC-06-1 harus memiliki varian uji dengan angka klien di atas (100/20/120) sebagai test ACM.
+
 ---
 
 ## US-01 — Membuat draft pesanan (3)

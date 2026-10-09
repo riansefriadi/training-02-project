@@ -65,6 +65,18 @@ Kolom implementasi masih berupa **rencana** (tabel/endpoint/layar dari 04 dan 05
 | BR-12 | Customer/product harus aktif | US-01, US-02 | customers, products | E-04, E-08 | S-03 | TS-01-2, TS-02-8 | — | BELUM DIJALANKAN |
 | BR-13 | Visibilitas per role | US-07, US-08 | sales_orders | E-05, E-06, E-14, E-15 | S-02, S-04 | TS-07-4..6, TS-08-5 | — | BELUM DIJALANKAN |
 
+### 4.1 Acceptance Criteria Minimum (ACM)
+
+Test ACM memakai angka klien (stok 100; minta 20 atau 120; reservasi 20) sebagai varian dari skenario yang disebut. Lihat 03-user-stories.md.
+
+| ACM | Skenario | Test | Story | Endpoint | Layar | Hasil |
+|---|---|---|---|---|---|---|
+| ACM-1 | Submit berhasil | TS-04-1 (varian 100/20) | US-04 | E-11 | S-03 | BELUM DIJALANKAN |
+| ACM-2 | Stok tidak cukup | TS-04-6, TS-04-8 (varian 100/120) | US-04 | E-11 | S-03 | BELUM DIJALANKAN |
+| ACM-3 | Approve | TS-05-1 (varian reservasi 20) | US-05 | E-12 | S-05 | BELUM DIJALANKAN |
+| ACM-4 | Reject | TS-06-1 (varian reservasi 20) | US-06 | E-13 | S-05 | BELUM DIJALANKAN |
+| ACM-5 | Akses ditolak | TS-05-4 | US-05 | E-12 | S-05 | BELUM DIJALANKAN |
+
 Catatan keterlacakan: `ERR-xx` → test yang memicunya ada di skenario BDD (kolom Then). Tujuan 4 PRD (keterlacakan sampai test case) dipenuhi oleh matriks ini; kolom implementasi dan hasil menjadi bukti setelah pembangunan.
 
 ## 5. Kebutuhan yang Menunggu Keputusan Klien

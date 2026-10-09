@@ -119,6 +119,20 @@ Cakupan: FR-7, FR-8, FR-9.
 
 Total: 18 poin.
 
+### 7.1 Acceptance Criteria Minimum (ACM)
+
+Dari klien/pemberi tugas; berlaku sebagai syarat lulus minimum, di atas acceptance criteria per story. Nilai angka adalah contoh dari klien.
+
+| ID | Skenario | Given | When | Then |
+|---|---|---|---|---|
+| ACM-1 | Submit berhasil | Stok tersedia 100 dan draft meminta 20. | Sales Admin melakukan submit. | Status menjadi `submitted` dan reserved quantity bertambah 20. |
+| ACM-2 | Stok tidak cukup | Stok tersedia 100 dan draft meminta 120. | Sales Admin melakukan submit. | Permintaan ditolak, data tidak berubah sebagian, dan pesan stok tidak cukup tampil. |
+| ACM-3 | Approve | Pesanan `submitted` mereservasi 20. | Supervisor melakukan approve. | Status `approved`, stok fisik berkurang 20, reservasi dilepas, dan audit tercatat. |
+| ACM-4 | Reject | Pesanan `submitted` mereservasi 20. | Supervisor melakukan reject dengan alasan. | Status `rejected`, reservasi dilepas, stok fisik tidak berkurang, dan alasan tersimpan. |
+| ACM-5 | Akses ditolak | Pengguna berperan Sales Admin. | Pengguna membuka aksi approve. | Sistem mengembalikan 403 atau menolak aksi tanpa mengubah data. |
+
+Pemetaan ke skenario BDD rinci: [design/03-user-stories.md](../design/03-user-stories.md), bagian "Acceptance Criteria Minimum".
+
 ## 8. Asumsi
 
 | ID | Asumsi | Perlu dikonfirmasi |
