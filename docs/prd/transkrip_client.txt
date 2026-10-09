@@ -1,0 +1,9 @@
+Pesanan gula dari distributor masih dicatat melalui chat dan spreadsheet. Sales dapat menjanjikan jumlah barang tanpa melihat ketersediaan terbaru. Warehouse baru mengetahui pesanan setelah dokumen dikirim, sedangkan persetujuan supervisor tidak memiliki status yang jelas. Kondisi ini menimbulkan risiko stok minus, pesanan ganda, diskon yang tidak sesuai, dan kesulitan menelusuri siapa yang mengubah atau menyetujui pesanan. 
+
+Perusahaan membutuhkan MVP aplikasi web untuk membuat sales order, memeriksa dan mereservasi stok, meminta persetujuan, serta mencatat riwayat perubahan. System Analyst menetapkan proses dan spesifikasi. Application Developer membangun dan menguji MVP menggunakan Laravel dan Microsoft SQL Server. 
+
+Tujuan 
+    Membuat alur pesanan yang jelas dari draft, submitted, approved atau rejected. 
+    Mencegah jumlah pesanan melebihi stok tersedia dan mencegah stok menjadi negatif. 
+    Menerapkan pembatasan akses berdasarkan role serta pencatatan audit yang dapat ditelusuri. 
+    Membuktikan keterlacakan dari kebutuhan, desain, endpoint atau layar, hingga test case.
