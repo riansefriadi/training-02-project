@@ -44,12 +44,27 @@ Peran proyek (bukan pengguna aplikasi): System Analyst (menetapkan proses dan sp
 | FR-1 | Master customer dan product dimuat dari data awal (tanpa layar kelola master). | Lingkup MVP |
 | FR-2 | Sales membuat sales order berstatus `draft` dengan satu atau lebih item. | Transkrip, Lingkup |
 | FR-3 | Sistem memeriksa stok tersedia saat item ditambahkan/diubah dan menolak jumlah melebihi stok. | Tujuan 2 |
-| FR-4 | Sistem mereservasi stok untuk pesanan; stok tersedia tidak pernah negatif. | Tujuan 2, Lingkup |
+| FR-4 | Stok direservasi saat `submitted`; saat `approved` stok fisik berkurang dan reservasi dilepas; saat `rejected` reservasi dilepas tanpa mengurangi stok fisik. Stok tersedia tidak pernah negatif. | Tujuan 2, Lingkup, ABM-4 |
 | FR-5 | Status pesanan: `draft`, `submitted`, `approved`, `rejected`. | Tujuan 1 |
 | FR-6 | Supervisor menyetujui atau menolak pesanan `submitted` dengan catatan. | Lingkup |
 | FR-7 | Daftar pesanan dengan pencarian dan filter status. | Lingkup |
 | FR-8 | Audit trail: siapa, kapan, apa yang berubah, termasuk approve/reject. | Tujuan 3 |
 | FR-9 | Akses dibatasi menurut role. | Tujuan 3 |
+
+### 5.1 Aturan Bisnis Minimum (ABM)
+
+Dari klien/pemberi tugas; bersifat keputusan, bukan asumsi.
+
+| ID | Aturan |
+|---|---|
+| ABM-1 | Nomor pesanan bersifat unik dan dibuat oleh sistem. |
+| ABM-2 | Pesanan minimal memiliki satu item dengan kuantitas lebih dari nol. |
+| ABM-3 | Stok tersedia dihitung dari stok fisik dikurangi stok yang sedang direservasi. |
+| ABM-4 | Saat pesanan `submitted`, stok direservasi. Saat `approved`, stok fisik berkurang dan reservasi dilepas. Saat `rejected`, reservasi dilepas tanpa mengurangi stok fisik. |
+| ABM-5 | Hanya Supervisor yang dapat approve atau reject pesanan `submitted`. |
+| ABM-6 | Setiap perubahan status menyimpan pengguna, waktu, status awal, status akhir, dan catatan. |
+
+Dampak: draft tidak menahan stok. Dua draft dapat memuat product yang sama melebihi stok gabungan; yang mengikat adalah pengecekan dan reservasi atomik saat submit.
 
 ## 6. Kebutuhan Non-Fungsional
 
@@ -61,7 +76,7 @@ Peran proyek (bukan pengguna aplikasi): System Analyst (menetapkan proses dan sp
 
 Prioritas mengikuti urutan alur: buat dan jaga stok (P1), putuskan (P2), telusuri (P3). Story points memakai skala Fibonacci; ini estimasi awal yang perlu divalidasi tim.
 
-### US-1 (Prioritas 1) — Membuat sales order dengan cek dan reservasi stok — **8 poin**
+### US-1 (Prioritas 1) — Membuat sales order dengan cek stok — **8 poin**
 
 Sebagai **Sales**, saya ingin membuat sales order dengan item pesanan dan melihat ketersediaan stok terbaru, agar saya tidak menjanjikan barang yang tidak tersedia.
 
@@ -69,10 +84,10 @@ Cakupan: FR-1, FR-2, FR-3, FR-4.
 
 **Acceptance Criteria**
 
-1. **Given** Sales login dan customer serta product tersedia dari data awal, **When** Sales membuat pesanan dan menambah item dengan jumlah ≤ stok tersedia, **Then** pesanan tersimpan berstatus `draft` dan stok tersedia item berkurang sesuai reservasi **[ASUMSI-1]**.
+1. **Given** Sales login dan customer serta product tersedia dari data awal, **When** Sales membuat pesanan dan menambah item dengan jumlah ≤ stok tersedia, **Then** pesanan tersimpan berstatus `draft` dan stok tersedia tidak berubah (draft belum mereservasi, ABM-4).
 2. **Given** stok tersedia suatu product adalah 10, **When** Sales menambah item dengan jumlah 11, **Then** sistem menolak, menampilkan pesan stok tidak cukup beserta stok tersedia, dan pesanan/stok tidak berubah.
-3. **Given** pesanan `draft` memiliki reservasi, **When** Sales mengubah jumlah item, **Then** reservasi disesuaikan dan stok tersedia tidak pernah bernilai negatif.
-4. **Given** dua pengguna memesan product yang sama pada waktu hampir bersamaan, **When** total jumlah melebihi stok tersedia, **Then** hanya permintaan yang muat dalam stok yang berhasil dan yang lain ditolak **[ASUMSI-2]**.
+3. **Given** pesanan `draft`, **When** Sales mengubah jumlah item, **Then** jumlah baru diperiksa terhadap stok tersedia dan stok tidak berubah (belum ada reservasi).
+4. **Given** dua pesanan memuat product yang sama dan total jumlah melebihi stok tersedia, **When** keduanya di-submit hampir bersamaan, **Then** hanya yang muat dalam stok yang berhasil menjadi `submitted` dan stok tersedia tidak pernah negatif; yang lain ditolak dan tetap `draft` **[ASUMSI-2]**.
 
 ### US-2 (Prioritas 2) — Submit, approve, dan reject dengan catatan — **5 poin**
 
@@ -82,9 +97,9 @@ Cakupan: FR-5, FR-6, FR-9.
 
 **Acceptance Criteria**
 
-1. **Given** pesanan `draft` milik Sales dengan minimal satu item, **When** Sales men-submit, **Then** status menjadi `submitted` dan pesanan tidak dapat diubah lagi oleh Sales **[ASUMSI-3]**.
-2. **Given** pesanan `submitted` dan Supervisor login, **When** Supervisor approve (catatan sesuai aturan **[OQ-4]**), **Then** status menjadi `approved`, catatan tersimpan, dan reservasi stok dipertahankan **[ASUMSI-4]**.
-3. **Given** pesanan `submitted` dan Supervisor login, **When** Supervisor reject dengan catatan, **Then** status menjadi `rejected`, catatan tersimpan, dan stok yang direservasi dikembalikan **[ASUMSI-4]**.
+1. **Given** pesanan `draft` milik Sales dengan minimal satu item, **When** Sales men-submit, **Then** status menjadi `submitted`, stok semua item direservasi, dan pesanan tidak dapat diubah lagi oleh Sales **[ASUMSI-3]**; bila stok salah satu item tidak cukup, submit ditolak seluruhnya dan status tetap `draft`.
+2. **Given** pesanan `submitted` dan Supervisor login, **When** Supervisor approve (catatan sesuai aturan **[OQ-4]**), **Then** status menjadi `approved`, catatan tersimpan, stok fisik berkurang sesuai jumlah item, dan reservasi dilepas (ABM-4).
+3. **Given** pesanan `submitted` dan Supervisor login, **When** Supervisor reject dengan catatan, **Then** status menjadi `rejected`, catatan tersimpan, dan reservasi dilepas tanpa mengurangi stok fisik (ABM-4).
 4. **Given** pesanan berstatus `draft`, `approved`, atau `rejected`, **When** ada upaya approve/reject, **Then** sistem menolak karena transisi status tidak valid.
 5. **Given** pengguna tanpa hak approve (mis. Sales), **When** mencoba approve atau reject, **Then** sistem menolak dengan respons akses ditolak.
 
@@ -108,19 +123,19 @@ Total: 18 poin.
 
 | ID | Asumsi | Perlu dikonfirmasi |
 |---|---|---|
-| ASUMSI-1 | Reservasi stok terjadi saat item disimpan pada `draft`, bukan saat submit atau approve. | OQ-2 |
+| ASUMSI-1 | ~~Reservasi saat item disimpan pada `draft`.~~ **Gugur**: digantikan ABM-4 (reservasi saat `submitted`). | — |
 | ASUMSI-2 | Pengecekan stok bersifat atomik terhadap permintaan bersamaan (mencegah stok minus). | — (turunan Tujuan 2) |
 | ASUMSI-3 | Pesanan `submitted` terkunci dari perubahan Sales sampai ada keputusan. | OQ-3 |
-| ASUMSI-4 | Approve mempertahankan reservasi; reject melepaskannya. | OQ-2 |
+| ASUMSI-4 | ~~Approve mempertahankan reservasi.~~ **Gugur**: ABM-4 menetapkan approve mengurangi stok fisik dan melepas reservasi; reject melepas reservasi tanpa mengurangi stok fisik. | — |
 | ASUMSI-5 | Satu pesanan memiliki satu customer; item berupa product dengan jumlah. | OQ-6 |
-| ASUMSI-6 | "Stok tersedia" = stok fisik dikurangi reservasi aktif; data stok awal disediakan bersama master. | OQ-7 |
+| ASUMSI-6 | "Stok tersedia" = stok fisik dikurangi reservasi aktif **(ditetapkan ABM-3)**; yang masih asumsi: data stok awal disediakan bersama master. | OQ-7 |
 
 ## 9. Pertanyaan Terbuka
 
 | ID | Pertanyaan | Dampak |
 |---|---|---|
 | OQ-1 | Apa hak akses tiap role (Sales, Warehouse, Supervisor, lainnya)? Apakah Sales hanya melihat pesanan sendiri? Apa yang dilakukan Warehouse di aplikasi (hanya lihat atau ada aksi)? | US-2, US-3 |
-| OQ-2 | Kapan stok direservasi dan dilepas (draft, submit, approve)? Apakah ada kedaluwarsa reservasi untuk `draft` yang menggantung? | US-1, US-2 |
+| OQ-2 | ~~Kapan stok direservasi dan dilepas?~~ **Terjawab oleh ABM-4.** Sisa: apakah item draft perlu dicek terhadap stok tersedia saat disimpan (pengecekan awal, tidak mengikat), atau hanya saat submit? Draft tidak menahan stok sehingga kedaluwarsa draft tidak lagi terkait stok. | US-1, US-2 |
 | OQ-3 | Setelah `rejected`, bolehkah pesanan diedit dan diajukan ulang, atau harus dibuat baru? Bolehkah `submitted` ditarik kembali? | US-2 |
 | OQ-4 | Apakah catatan wajib saat approve, saat reject, atau keduanya? Batas panjang? | US-2 |
 | OQ-5 | Bidang apa yang dapat dicari (nomor pesanan, customer, product, tanggal)? | US-3 |
