@@ -22,13 +22,7 @@ Enum order_status {
 
 Enum reservation_status {
   active    [note: 'Menahan stok']
-  released  [note: 'Dikembalikan ke stok tersedia (mis. reject) [ASUMSI-4]']
-  // Pelepasan untuk approve/kedaluwarsa belum diputuskan -> OQ-2
-}
-
-Enum decision_type {
-  approve
-  reject
+  released  [note: 'Reservasi dilepas: saat approved (stok fisik dikurangi) atau rejected (stok fisik tetap) [ABM-4]']
 }
 
 // ---------------------------------------------------------------
@@ -93,7 +87,11 @@ Table stocks {
     CHECK (qty_on_hand >= 0)
     CHECK (qty_reserved >= 0)
     CHECK (qty_reserved <= qty_on_hand)  -- stok tersedia tidak pernah negatif
-    Update reservasi harus atomik (UPDATE ... WHERE qty_on_hand - qty_reserved >= @qty).
+    Siklus stok [ABM-3, ABM-4]:
+      submit  : qty_reserved += qty   (atomik, hanya bila qty_on_hand - qty_reserved >= qty)
+      approve : qty_on_hand -= qty dan qty_reserved -= qty
+      reject  : qty_reserved -= qty   (qty_on_hand tidak berubah)
+    Reservasi atomik: UPDATE ... WHERE qty_on_hand - qty_reserved >= @qty.
   '''
 }
 
@@ -103,13 +101,13 @@ Table stocks {
 
 Table sales_orders {
   id            bigint [pk, increment]
-  order_no      varchar(30) [not null, unique, note: 'Format & penomoran -> OQ-6']
+  order_no      varchar(30) [not null, unique, note: 'Unik dan dibuat sistem [ABM-1]. Format (usulan SO-yyyymmdd-nnnn) -> OQ-6']
   customer_id   bigint [not null, ref: > customers.id]
   created_by    bigint [not null, ref: > users.id, note: 'Sales pembuat']
   status        order_status [not null, default: 'draft']
   note          nvarchar(500)
   submitted_at  datetime2
-  decided_at    datetime2 [note: 'Waktu approve/reject terakhir']
+  decided_at    datetime2 [note: 'Waktu approve/reject; salinan praktis dari order_status_histories']
   created_at    datetime2 [not null, default: `SYSUTCDATETIME()`]
   updated_at    datetime2
 
@@ -126,15 +124,17 @@ Table sales_order_items {
   id              bigint [pk, increment]
   sales_order_id  bigint [not null, ref: > sales_orders.id]
   product_id      bigint [not null, ref: > products.id]
-  qty             decimal(18,3) [not null, note: 'CHECK (qty > 0)']
+  qty             decimal(18,3) [not null, note: 'CHECK (qty > 0) [ABM-2]']
 
   indexes {
-    (sales_order_id, product_id) [unique, name: 'ux_soi_order_product', note: 'Satu product sekali per pesanan; asumsi, dikonfirmasi bersama OQ-9']
+    (sales_order_id, product_id) [unique, name: 'ux_soi_order_product', note: 'Satu product sekali per pesanan [USULAN] U-7, OQ-9']
   }
 }
 
 // ---------------------------------------------------------------
-// Reservasi stok per item (FR-4) — jejak reservasi untuk audit & test
+// Reservasi stok per item (FR-4) — dibuat saat submit [ABM-4];
+// dilepas saat approved (stok fisik dikurangi) atau rejected.
+// Draft tidak membuat reservasi.
 // ---------------------------------------------------------------
 
 Table stock_reservations {
@@ -148,27 +148,31 @@ Table stock_reservations {
 
   indexes {
     (product_id, status) [name: 'ix_res_product_status']
-    sales_order_item_id [unique, name: 'ux_res_item', note: 'Satu reservasi per item; qty diperbarui saat item berubah [USULAN] design/04-data.md']
+    sales_order_item_id [unique, name: 'ux_res_item', note: 'Satu reservasi per item, dibuat saat submit; item tidak dapat berubah setelah itu']
   }
-  Note: 'Waktu reservasi/pelepasan & kedaluwarsa draft belum diputuskan -> OQ-2'
+  Note: 'Dibuat saat submit, dilepas saat approved/rejected [ABM-4]. Kedaluwarsa draft tidak relevan (draft tidak menahan stok)'
 }
 
 // ---------------------------------------------------------------
-// Keputusan supervisor (FR-6) — riwayat, bukan hanya status terakhir,
-// agar tetap valid bila kelak diajukan ulang (OQ-3).
+// Riwayat perubahan status (FR-5, FR-6) [ABM-6]
+// Setiap perubahan status menyimpan pengguna, waktu, status awal,
+// status akhir, dan catatan. Keputusan approve/reject (FR-6) adalah
+// baris dengan to_status = approved/rejected.
 // ---------------------------------------------------------------
 
-Table order_decisions {
+Table order_status_histories {
   id              bigint [pk, increment]
   sales_order_id  bigint [not null, ref: > sales_orders.id]
-  decided_by      bigint [not null, ref: > users.id]
-  decision        decision_type [not null]
-  note            nvarchar(1000) [note: 'NULL-able: wajib/tidaknya catatan -> OQ-4']
-  decided_at      datetime2 [not null, default: `SYSUTCDATETIME()`]
+  from_status     order_status [note: 'NULL pada pembuatan pesanan (belum ada status awal)']
+  to_status       order_status [not null]
+  changed_by      bigint [not null, ref: > users.id]
+  changed_at      datetime2 [not null, default: `SYSUTCDATETIME()`]
+  note            nvarchar(1000) [note: 'NULL-able: wajib saat reject [USULAN] U-3, OQ-4']
 
   indexes {
-    sales_order_id [unique, name: 'ux_dec_order', note: 'Satu keputusan per pesanan karena approved/rejected final [USULAN] U-2, OQ-3']
+    (sales_order_id, changed_at) [name: 'ix_hist_order_time']
   }
+  Note: 'Append-only. Perubahan status hanya lewat aplikasi dan selalu menulis satu baris di sini.'
 }
 
 // ---------------------------------------------------------------
