@@ -21,7 +21,9 @@ Pesanan gula dari distributor masih dicatat lewat chat dan spreadsheet. Akibatny
 
 ## 3. Pengguna / Role
 
-Role disebut di transkrip: Sales, Warehouse, Supervisor. Hak akses rinci per role belum ditetapkan **[OQ-1]**.
+Role disebut di transkrip: Sales, Warehouse, Supervisor. Pada tahap desain, "Sales" disebut **Sales Admin** (di bagian lain dokumen ini tetap tertulis "Sales"). Hak akses rinci per role belum ditetapkan **[OQ-1]**; usulan ada di [design/02-rules.md](../design/02-rules.md).
+
+Rincian desain (alur, rule, story BDD, data, API/layar, test, keterlacakan): folder [docs/design/](../design/). Tiga story di bagian 7 diperluas menjadi delapan di [design/03-user-stories.md](../design/03-user-stories.md).
 
 Peran proyek (bukan pengguna aplikasi): System Analyst (menetapkan proses dan spesifikasi); Application Developer (membangun dan menguji MVP).
 
