@@ -1,0 +1,198 @@
+// Schema MVP Sales Order — turunan dari PRD_Sales_Order_MVP.md
+// Target: Microsoft SQL Server (Laravel). Tipe memakai tipe SQL Server.
+// Penanda [ASUMSI-n] / [OQ-n] merujuk ke PRD. Hal yang belum diputuskan klien TIDAK dimodelkan.
+//
+// Sengaja tidak dimodelkan (belum diputuskan klien):
+//  - Harga, diskon, pajak            -> OQ-6
+//  - Tabel permission rinci per role -> OQ-1 (hanya role sederhana)
+//  - Aturan deteksi pesanan ganda    -> OQ-9 (hanya unique order_no)
+//  - Pengiriman/dokumen warehouse    -> OQ-11 (di luar lingkup)
+
+Project sales_order_mvp {
+  database_type: 'SQL Server'
+  Note: 'Alur pesanan: draft -> submitted -> approved | rejected (FR-5)'
+}
+
+Enum order_status {
+  draft
+  submitted
+  approved
+  rejected
+}
+
+Enum reservation_status {
+  active    [note: 'Menahan stok']
+  released  [note: 'Dikembalikan ke stok tersedia (mis. reject) [ASUMSI-4]']
+  // Pelepasan untuk approve/kedaluwarsa belum diputuskan -> OQ-2
+}
+
+Enum decision_type {
+  approve
+  reject
+}
+
+// ---------------------------------------------------------------
+// Akses (FR-9)
+// ---------------------------------------------------------------
+
+Table roles {
+  id        int [pk, increment]
+  code      varchar(30) [not null, unique, note: 'Awal: sales, warehouse, supervisor. Hak akses rinci -> OQ-1']
+  name      nvarchar(100) [not null]
+}
+
+Table users {
+  id             bigint [pk, increment]
+  role_id        int [not null, ref: > roles.id]
+  name           nvarchar(150) [not null]
+  email          varchar(190) [not null, unique]
+  password       varchar(255) [not null, note: 'Hash. Skema autentikasi -> OQ-10']
+  is_active      bit [not null, default: 1]
+  created_at     datetime2 [not null, default: `SYSUTCDATETIME()`]
+  updated_at     datetime2
+}
+
+// ---------------------------------------------------------------
+// Master dari data awal (FR-1) — tanpa layar kelola master
+// ---------------------------------------------------------------
+
+Table customers {
+  id          bigint [pk, increment]
+  code        varchar(30) [not null, unique]
+  name        nvarchar(200) [not null]
+  is_active   bit [not null, default: 1]
+  created_at  datetime2 [not null, default: `SYSUTCDATETIME()`]
+  updated_at  datetime2
+  Note: 'Atribut lain (alamat, kontak) tidak disebut klien'
+}
+
+Table products {
+  id          bigint [pk, increment]
+  sku         varchar(40) [not null, unique]
+  name        nvarchar(200) [not null]
+  uom         varchar(20) [not null, note: 'Satuan (mis. kg, karung). Nilai ditentukan data awal -> OQ-7']
+  is_active   bit [not null, default: 1]
+  created_at  datetime2 [not null, default: `SYSUTCDATETIME()`]
+  updated_at  datetime2
+}
+
+// ---------------------------------------------------------------
+// Stok (FR-3, FR-4)
+// Stok tersedia = qty_on_hand - qty_reserved [ASUMSI-6]
+// Satu gudang diasumsikan (transfer antar-gudang di luar lingkup).
+// ---------------------------------------------------------------
+
+Table stocks {
+  id            bigint [pk, increment]
+  product_id    bigint [not null, unique, ref: - products.id, note: 'Satu baris stok per product']
+  qty_on_hand   decimal(18,3) [not null, default: 0]
+  qty_reserved  decimal(18,3) [not null, default: 0]
+  row_version   rowversion [note: 'Concurrency control untuk reservasi bersamaan [ASUMSI-2]']
+  updated_at    datetime2
+  Note: '''
+    CHECK (qty_on_hand >= 0)
+    CHECK (qty_reserved >= 0)
+    CHECK (qty_reserved <= qty_on_hand)  -- stok tersedia tidak pernah negatif
+    Update reservasi harus atomik (UPDATE ... WHERE qty_on_hand - qty_reserved >= @qty).
+  '''
+}
+
+// ---------------------------------------------------------------
+// Sales order (FR-2, FR-5)
+// ---------------------------------------------------------------
+
+Table sales_orders {
+  id            bigint [pk, increment]
+  order_no      varchar(30) [not null, unique, note: 'Format & penomoran -> OQ-6']
+  customer_id   bigint [not null, ref: > customers.id]
+  created_by    bigint [not null, ref: > users.id, note: 'Sales pembuat']
+  status        order_status [not null, default: 'draft']
+  note          nvarchar(500)
+  submitted_at  datetime2
+  decided_at    datetime2 [note: 'Waktu approve/reject terakhir']
+  created_at    datetime2 [not null, default: `SYSUTCDATETIME()`]
+  updated_at    datetime2
+
+  indexes {
+    status [name: 'ix_so_status', note: 'Filter status (FR-7)']
+    customer_id [name: 'ix_so_customer']
+    created_by [name: 'ix_so_created_by']
+    created_at [name: 'ix_so_created_at']
+  }
+  Note: 'Satu pesanan = satu customer [ASUMSI-5]. Bidang pencarian -> OQ-5'
+}
+
+Table sales_order_items {
+  id              bigint [pk, increment]
+  sales_order_id  bigint [not null, ref: > sales_orders.id]
+  product_id      bigint [not null, ref: > products.id]
+  qty             decimal(18,3) [not null, note: 'CHECK (qty > 0)']
+
+  indexes {
+    (sales_order_id, product_id) [unique, name: 'ux_soi_order_product', note: 'Satu product sekali per pesanan; asumsi, dikonfirmasi bersama OQ-9']
+  }
+}
+
+// ---------------------------------------------------------------
+// Reservasi stok per item (FR-4) — jejak reservasi untuk audit & test
+// ---------------------------------------------------------------
+
+Table stock_reservations {
+  id                   bigint [pk, increment]
+  sales_order_item_id  bigint [not null, ref: > sales_order_items.id]
+  product_id           bigint [not null, ref: > products.id]
+  qty                  decimal(18,3) [not null, note: 'CHECK (qty > 0)']
+  status               reservation_status [not null, default: 'active']
+  reserved_at          datetime2 [not null, default: `SYSUTCDATETIME()`]
+  released_at          datetime2
+
+  indexes {
+    (product_id, status) [name: 'ix_res_product_status']
+    sales_order_item_id [name: 'ix_res_item']
+  }
+  Note: 'Waktu reservasi/pelepasan & kedaluwarsa draft belum diputuskan -> OQ-2'
+}
+
+// ---------------------------------------------------------------
+// Keputusan supervisor (FR-6) — riwayat, bukan hanya status terakhir,
+// agar tetap valid bila kelak diajukan ulang (OQ-3).
+// ---------------------------------------------------------------
+
+Table order_decisions {
+  id              bigint [pk, increment]
+  sales_order_id  bigint [not null, ref: > sales_orders.id]
+  decided_by      bigint [not null, ref: > users.id]
+  decision        decision_type [not null]
+  note            nvarchar(1000) [note: 'NULL-able: wajib/tidaknya catatan -> OQ-4']
+  decided_at      datetime2 [not null, default: `SYSUTCDATETIME()`]
+
+  indexes {
+    sales_order_id [name: 'ix_dec_order']
+  }
+}
+
+// ---------------------------------------------------------------
+// Audit trail (FR-8) — append-only
+// ---------------------------------------------------------------
+
+Table audit_logs {
+  id              bigint [pk, increment]
+  sales_order_id  bigint [ref: > sales_orders.id, note: 'NULL untuk aksi non-pesanan']
+  user_id         bigint [not null, ref: > users.id]
+  action          varchar(40) [not null, note: 'created, item_added, item_changed, item_removed, submitted, approved, rejected, ...']
+  entity_type     varchar(40) [not null, note: 'sales_order, sales_order_item, stock_reservation, ...']
+  entity_id       bigint
+  old_values      nvarchar(max) [note: 'JSON']
+  new_values      nvarchar(max) [note: 'JSON']
+  note            nvarchar(1000)
+  created_at      datetime2 [not null, default: `SYSUTCDATETIME()`]
+
+  indexes {
+    (sales_order_id, created_at) [name: 'ix_audit_order_time']
+    user_id [name: 'ix_audit_user']
+  }
+  Note: '''
+    Append-only: aplikasi hanya INSERT. Cegah UPDATE/DELETE (hak DB atau trigger).
+    Masa simpan -> OQ-8.
+  '''
+}
