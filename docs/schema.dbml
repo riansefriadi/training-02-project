@@ -37,7 +37,7 @@ Enum decision_type {
 
 Table roles {
   id        int [pk, increment]
-  code      varchar(30) [not null, unique, note: 'Awal: sales, warehouse, supervisor. Hak akses rinci -> OQ-1']
+  code      varchar(30) [not null, unique, note: 'sales_admin, supervisor, warehouse. Hak akses rinci -> OQ-1 (lihat design/02-rules.md)']
   name      nvarchar(100) [not null]
 }
 
@@ -148,7 +148,7 @@ Table stock_reservations {
 
   indexes {
     (product_id, status) [name: 'ix_res_product_status']
-    sales_order_item_id [name: 'ix_res_item']
+    sales_order_item_id [unique, name: 'ux_res_item', note: 'Satu reservasi per item; qty diperbarui saat item berubah [USULAN] design/04-data.md']
   }
   Note: 'Waktu reservasi/pelepasan & kedaluwarsa draft belum diputuskan -> OQ-2'
 }
@@ -167,7 +167,7 @@ Table order_decisions {
   decided_at      datetime2 [not null, default: `SYSUTCDATETIME()`]
 
   indexes {
-    sales_order_id [name: 'ix_dec_order']
+    sales_order_id [unique, name: 'ux_dec_order', note: 'Satu keputusan per pesanan karena approved/rejected final [USULAN] U-2, OQ-3']
   }
 }
 
